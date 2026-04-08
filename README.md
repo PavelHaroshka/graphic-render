@@ -31,7 +31,7 @@ A real-time rendering pipeline that converts 3D geometry into pixels. It include
 
 You can try the live version of the project here:
 
-**Live Demo:** https://your-demo-link-here.com
+**[Live Demo](https://pavelharoshka.github.io/graphic-render/)**
 
 ## Results
 
