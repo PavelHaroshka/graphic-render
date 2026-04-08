@@ -1,14 +1,17 @@
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  base: "/graphic-render/",
+  base: "/your-repo-name/",
+
   optimizeDeps: {
     include: ["threejs-math"],
   },
-  resolve: {
-    dedupe: ["threejs-math"],
-  },
+
   build: {
+    rollupOptions: {
+      external: [],
+    },
+
     commonjsOptions: {
       transformMixedEsModules: true,
     },
