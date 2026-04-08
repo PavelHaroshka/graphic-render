@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Renderer Demo</title>
+    <script type="module" crossorigin src="/graphic-render/assets/index-3RIlRHrV.js"></script>
+    <link rel="stylesheet" crossorigin href="/graphic-render/assets/index-BUrKzRRA.css">
+  </head>
+  <body>
+    <div class="container">
+      <h1>Renderer Demo</h1>
+
+      <!-- Tabs -->
+      <input type="radio" name="tab" id="raytracer" checked />
+      <input type="radio" name="tab" id="rasterizer" />
+
+      <div class="tabs">
+        <label for="raytracer">Raytracer</label>
+        <label for="rasterizer">Rasterizer</label>
+      </div>
+
+      <div class="content">
+        <div class="panel raytracer">
+          <div class="title">Raytracer Demo</div>
+          <canvas id="ray-tracer-demo"></canvas>
+        </div>
+
+        <div class="panel rasterizer">
+          <div class="title">Rasterizer Demo</div>
+          <canvas id="rasterizer-demo"></canvas>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
