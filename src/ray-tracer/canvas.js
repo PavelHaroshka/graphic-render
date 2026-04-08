@@ -6,6 +6,7 @@ export class Canvas {
     this.config = config;
 
     const element = document.getElementById(config.elementId);
+    console.log(element)
     this.ctx = element.getContext("2d");
 
     element.height = config.screenHeight;

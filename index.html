@@ -1,17 +1,37 @@
 <!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="main.css" />
+    <title>Renderer Demo</title>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Renderer Demo</h1>
 
-<head>
-  <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>sample engine 3d</title>
-</head>
+      <!-- Tabs -->
+      <input type="radio" name="tab" id="raytracer" checked />
+      <input type="radio" name="tab" id="rasterizer" />
 
-<body>
-  <canvas id="screen"></canvas>
-  <!-- <script type="module" src="/src/ray-tracer/index.js"></script> -->
-  <script type="module" src="/src/rasterizer/index.js"></script>
-</body>
+      <div class="tabs">
+        <label for="raytracer">Raytracer</label>
+        <label for="rasterizer">Rasterizer</label>
+      </div>
 
+      <div class="content">
+        <div class="panel raytracer">
+          <div class="title">Raytracer Demo</div>
+          <canvas id="ray-tracer-demo"></canvas>
+        </div>
+
+        <div class="panel rasterizer">
+          <div class="title">Rasterizer Demo</div>
+          <canvas id="rasterizer-demo"></canvas>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="src/ray-tracer/index.js"></script>
+    <script type="module" src="src/rasterizer/index.js"></script>
+  </body>
 </html>

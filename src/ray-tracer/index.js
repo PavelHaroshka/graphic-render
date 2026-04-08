@@ -8,9 +8,9 @@ import { Sphere } from "./shapes";
 
 const render = new Render(
   {
-    elementId: "screen",
-    screenWidth: 256,
-    screenHeight: 256,
+    elementId: "ray-tracer-demo",
+    screenWidth: 320,
+    screenHeight: 320,
   },
   {
     shapes: [
