@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  base: "/your-repo-name/",
+  base: "/graphic-render/",
 
   optimizeDeps: {
     include: ["threejs-math"],
