@@ -42,10 +42,10 @@ export const initRasterizer = () => {
         identifier: shapes.cube,
         translation: new Vector3(0, 0, 7),
         scale: 1,
-        rotation: new Vector3(0, 0, 0),
+        rotation: new Vector3(0, 2, 0),
       }),
     ],
   });
 
   render.renderScene();
-}
+};

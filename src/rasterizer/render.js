@@ -17,13 +17,14 @@ export class Render {
   putPixel(x, y, color) {
     const { screenHeight: Ch, screenWidth: Cw } = this.config;
 
-    const Cx = clamp(x, [(-1 * Cw) / 2, Cw / 2]);
-    const Cy = clamp(y, [(-1 * Ch) / 2, Ch / 2]);
+    const Cx = clamp(x, [-Cw / 2, Cw / 2]);
+    const Cy = clamp(y, [-Ch / 2, Ch / 2]);
 
     const Sx = Cw / 2 + Cx;
     const Sy = Ch / 2 - Cy;
 
     const { x: r, y: g, z: b } = color;
+
     this.canvas.ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
     this.canvas.ctx.fillRect(Sx, Sy, 1, 1);
   }
@@ -34,20 +35,17 @@ export class Render {
 
     if (Math.abs(p1.x - p0.x) > Math.abs(p1.y - p0.y)) {
       if (p0.x > p1.x) {
-        const [np0, np1] = this.swap(p0, p1);
-        p0 = np0;
-        p1 = np1;
+        [p0, p1] = [p1, p0];
       }
 
       const ys = this.interpolate({ x: p0.x, y: p0.y }, { x: p1.x, y: p1.y });
+
       for (let x = p0.x; x < p1.x; x++) {
         this.putPixel(x, ys[x - p0.x], color);
       }
     } else {
       if (p0.y > p1.y) {
-        const [np0, np1] = this.swap(p0, p1);
-        p0 = np0;
-        p1 = np1;
+        [p0, p1] = [p1, p0];
       }
 
       const xs = this.interpolate({ x: p0.y, y: p0.x }, { x: p1.y, y: p1.x });
@@ -64,77 +62,59 @@ export class Render {
     this.drawLine(p2, p0, color);
   }
 
-  drawShadedTri({ p0: P0, p1: P1, p2: P2 }, color) {
-    let p0 = P0;
-    let p1 = P1;
-    let p2 = P2;
+  drawShadedTri({ p0, p1, p2 }, color) {
+    const vertices = [p0, p1, p2].sort((a, b) => a.y - b.y);
 
-    if (p1.y < p0.y) {
-      const [np0, np1] = this.swap(p1, p0);
-      p0 = np0;
-      p1 = np1;
-    }
+    const [v0, v1, v2] = vertices;
+    if (v0.y === v2.y) return;
 
-    if (p2.y < p0.y) {
-      const [np0, np1] = this.swap(p2, p0);
-      p0 = np0;
-      p2 = np1;
-    }
+    const minY = Math.ceil(v0.y);
+    const maxY = Math.ceil(v2.y);
 
-    if (p2.y < p1.y) {
-      const [np0, np1] = this.swap(p2, p1);
-      p2 = np0;
-      p1 = np1;
-    }
+    for (let y = minY; y < maxY; y++) {
+      const intersections = [];
 
-    const x01 = this.interpolate({ x: p0.y, y: p0.x }, { x: p1.y, y: p1.x });
-    const h01 = this.interpolate({ x: p0.y, y: p0.h }, { x: p1.y, y: p1.h });
+      const edges = [
+        [v0, v1],
+        [v1, v2],
+        [v2, v0],
+      ];
 
-    const x12 = this.interpolate({ x: p1.y, y: p1.x }, { x: p2.y, y: p2.x });
-    const h12 = this.interpolate({ x: p1.y, y: p1.h }, { x: p2.y, y: p2.h });
+      for (const [a, b] of edges) {
+        if (a.y === b.y) continue;
 
-    const x02 = this.interpolate({ x: p0.y, y: p0.x }, { x: p2.y, y: p2.x });
-    const h02 = this.interpolate({ x: p0.y, y: p0.h }, { x: p2.y, y: p2.h });
+        const low = Math.min(a.y, b.y);
+        const high = Math.max(a.y, b.y);
 
-    x01.pop();
-    h01.pop();
+        if (y < low || y >= high) continue;
 
-    const x012 = [...x01, ...x12];
-    const h012 = [...h01, ...h12];
+        const t = (y - a.y) / (b.y - a.y);
 
-    let x_left = null;
-    let h_left = null;
-    let x_right = null;
-    let h_right = null;
+        intersections.push({
+          x: a.x + t * (b.x - a.x),
+          h: a.h + t * (b.h - a.h),
+        });
+      }
 
-    const mid = Math.floor(x012.length / 2);
-    if (x02[mid] < x012[mid]) {
-      x_left = x02;
-      h_left = h02;
+      if (intersections.length < 2) continue;
 
-      x_right = x012;
-      h_right = h012;
-    } else {
-      x_left = x012;
-      h_left = h012;
+      intersections.sort((a, b) => a.x - b.x);
 
-      x_right = x02;
-      h_right = h02;
-    }
+      const left = intersections[0];
+      const right = intersections[intersections.length - 1];
 
-    for (let y = p0.y; y < p2.y; y++) {
-      const x_l = x_left[y - p0.y];
-      const x_r = x_right[y - p0.y];
+      const startX = Math.ceil(left.x);
+      const endX = Math.floor(right.x);
 
-      const h_segment = this.interpolate(
-        { x: x_l, y: h_left[y - p0.y] },
-        { x: x_r, y: h_right[y - p0.y] }
-      );
+      for (let x = startX; x <= endX; x++) {
+        const t = right.x === left.x ? 0 : (x - left.x) / (right.x - left.x);
 
-      for (let x = x_l; x < x_r; x++) {
-        const { x: r, y: g, z: b } = color;
-        const shadedColor = new Vector3(r, g, b).multiplyScalar(
-          h_segment[x - x_l]
+        const intensity = left.h + t * (right.h - left.h);
+
+        const shadedColor = new Vector3(
+          color.x * intensity,
+          color.y * intensity,
+          color.z * intensity,
         );
 
         this.putPixel(x, y, shadedColor);
@@ -145,42 +125,46 @@ export class Render {
   renderShape({ shape, instance }) {
     const projected = {};
 
-    for (const V of shape.verticies) {
-      const { x, y, z } = V;
-      const Vt = this.transformSape(V, instance);
-      projected[`${x}${y}${z}`] = this.camera.projectVertex(Vt);
+    for (const vertex of shape.verticies) {
+      const { x, y, z } = vertex;
+
+      const transformed = this.transformSape(vertex, instance);
+      const projectedVertex = this.camera.projectVertex(transformed);
+
+      console.log({
+        original: { x: vertex.x, y: vertex.y, z: vertex.z },
+        transformed,
+        projected: projectedVertex,
+      });
+
+      projected[`${x}${y}${z}`] = {
+        ...projectedVertex,
+        h: vertex.h ?? 1,
+      };
     }
 
-    for (const T of shape.triangles) {
-      this.renderTriangel(T, projected);
+    for (const triangle of shape.triangles) {
+      this.renderTriangel(triangle, projected);
     }
   }
 
   transformSape(vertex, { scale, rotation, translation }) {
     const scaled = this.scaleShape(vertex, scale);
     const rotated = this.rotateShape(scaled, rotation);
+
     return this.translateShape(rotated, translation);
   }
 
   scaleShape(vertex, scale) {
     // prettier-ignore
     const scaleMatrix = new Matrix4().set(
-      scale, 0, 0, 0,
-      0, scale, 0, 0,
-      0, 0, scale, 0,
-      0, 0, 0, 1
-    )
+    scale, 0,     0,     0,
+    0,     scale, 0,     0,
+    0,     0,     scale, 0,
+    0,     0,     0,     1
+  );
 
-    // prettier-ignore
-    const vertexMatrix = new Matrix4().set(
-      vertex.x, 0, 0, 0,
-      vertex.y, 0, 0, 0,
-      vertex.z, 0, 0, 0,
-      1, 0, 0, 0
-    )
-
-    const scaled = scaleMatrix.multiply(vertexMatrix).elements;
-    return new Vector3(scaled[0], scaled[1], scaled[2]);
+    return new Vector3(vertex.x, vertex.y, vertex.z).applyMatrix4(scaleMatrix);
   }
 
   rotateShape(vertex, rotation) {
@@ -188,78 +172,62 @@ export class Render {
     const { cos, sin } = Math;
 
     // prettier-ignore
-    const vertexMatrix = new Matrix4().set(
-      vertex.x, 0, 0, 0,
-      vertex.y, 0, 0, 0,
-      vertex.z, 0, 0, 0,
-      1, 0, 0, 0
+    const Rx = new Matrix4().set(
+    1, 0,        0,       0,
+    0, cos(alpha), -sin(alpha), 0,
+    0, sin(alpha), cos(alpha),  0,
+    0, 0,        0,       1
+  );
+
+    // prettier-ignore
+    const Ry = new Matrix4().set(
+    cos(beta),  0, sin(beta), 0,
+    0,          1, 0,         0,
+    -sin(beta), 0, cos(beta), 0,
+    0,          0, 0,         1
+  );
+
+    // prettier-ignore
+    const Rz = new Matrix4().set(
+    cos(gamma), -sin(gamma), 0, 0,
+    sin(gamma), cos(gamma),  0, 0,
+    0,          0,           1, 0,
+    0,          0,           0, 1
+  );
+
+    const rotationMatrix = Rz.multiply(Ry).multiply(Rx);
+
+    return new Vector3(vertex.x, vertex.y, vertex.z).applyMatrix4(
+      rotationMatrix,
     );
-
-    // prettier-ignore
-    const rotationMatrixX = new Matrix4().set(
-      1, 0, 0, 0,
-      0, cos(alpha), -sin(alpha), 0,
-      0, sin(alpha), cos(alpha), 0,
-      0, 0, 0, 1
-    );
-
-    // prettier-ignore
-    const rotationMatrixY = new Matrix4().set(
-        cos(beta), 0, sin(beta), 0,
-        0, 1, 0, 0,
-        -sin(beta), 0, cos(beta), 0,
-        0, 0, 0, 1
-      )
-
-    // prettier-ignore
-    const rotationMatrixZ = new Matrix4().set(
-        cos(gamma), -sin(gamma), 0, 0,
-        sin(gamma), cos(gamma), 0, 0,
-        0, 0, 1, 0,
-        0, 0, 0, 1
-      )
-
-    const generalRotation = rotationMatrixX
-      .multiply(rotationMatrixY)
-      .multiply(rotationMatrixZ);
-
-    const rotated = generalRotation.multiply(vertexMatrix).elements;
-
-    return new Vector3(rotated[0], rotated[1], rotated[2]);
   }
 
   translateShape(vertex, translation) {
-    const { x, y, z } = translation;
-
     // prettier-ignore
     const translationMatrix = new Matrix4().set(
-      1, 0, 0, x,
-      0, 1, 0, y,
-      0, 0, 1, z,
-      0, 0, 0, 1
-    );
-    // prettier-ignore
-    const vertexMatrix = new Matrix4().set(
-      vertex.x, 0, 0, 0,
-      vertex.y, 0, 0, 0,
-      vertex.z, 0, 0, 0,
-      1, 0, 0, 0
-    );
+    1, 0, 0, translation.x,
+    0, 1, 0, translation.y,
+    0, 0, 1, translation.z,
+    0, 0, 0, 1
+  );
 
-    const translated = translationMatrix.multiply(vertexMatrix).elements;
-    return new Vector3(translated[0], translated[1], translated[2]);
+    return new Vector3(vertex.x, vertex.y, vertex.z).applyMatrix4(
+      translationMatrix,
+    );
   }
 
   renderTriangel(triangle, projected) {
-    const { p0, p1, p2, color } = triangle;
-    this.drawFrameTri(
-      new Triangle(
-        projected[`${p0.x}${p0.y}${p0.z}`],
-        projected[`${p1.x}${p1.y}${p1.z}`],
-        projected[`${p2.x}${p1.y}${p2.z}`],
-        color
-      )
+    const { p0, p1, p2 } = triangle;
+    const color = triangle.color ?? new Vector3(255, 255, 255);
+
+    const projectedTriangle = new Triangle(
+      projected[`${p0.x}${p0.y}${p0.z}`],
+      projected[`${p1.x}${p1.y}${p1.z}`],
+      projected[`${p2.x}${p2.y}${p2.z}`],
+      color,
     );
+
+    this.drawShadedTri(projectedTriangle, color);
   }
 
   renderScene() {
@@ -275,25 +243,20 @@ export class Render {
     });
   }
 
-  swap(p0, p1) {
-    let tmp = null;
-    tmp = p0;
-    p0 = p1;
-    p1 = tmp;
-    return [p0, p1];
-  }
-
   interpolate({ x: i0, y: d0 }, { x: i1, y: d1 }) {
-    if (i0 == i1) {
+    if (i0 === i1) {
       return [d0];
     }
+
     const values = [];
     const a = (d1 - d0) / (i1 - i0);
     let d = d0;
+
     for (let i = i0; i < i1; i++) {
       values.push(d);
-      d = d + a;
+      d += a;
     }
+
     return values;
   }
 }

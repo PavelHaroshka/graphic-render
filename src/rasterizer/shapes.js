@@ -16,7 +16,7 @@ export class Triangle {
     this.p0 = p0;
     this.p1 = p1;
     this.p2 = p2;
-    this.color = color;
+    this.color = color ?? new Vector3(255, 255, 255);
   }
 }
 
@@ -25,7 +25,7 @@ export class Shape {
   verticies = [];
   triangles = [];
   boundingSphere = {
-    center: 0,
+    center: new Vector3(0, 0, 0),
     r: 0,
   };
 
@@ -39,8 +39,8 @@ export class Shape {
           this.verticies[p0],
           this.verticies[p1],
           this.verticies[p2],
-          color
-        )
+          color,
+        ),
     );
 
     this.boundingSphere = this.getBoundinSphere(verticies);
@@ -48,6 +48,13 @@ export class Shape {
 
   getBoundinSphere(verticies) {
     let radius = 0;
+
+    if (!verticies.length) {
+      return {
+        center: new Vector3(0, 0, 0),
+        radius: 0,
+      };
+    }
 
     if (!verticies.length) return { center: new Vector3(0, 0, 0), radius };
 
@@ -58,7 +65,10 @@ export class Shape {
     const center = centroid.divideScalar(verticies.length);
 
     verticies.forEach((vertex) => {
-      const { x, y, z } = vertex.sub(center);
+      const x = vertex.x - center.x;
+      const y = vertex.y - center.y;
+      const z = vertex.z - center.z;
+
       const distance = Math.sqrt(x ** 2 + y ** 2 + z ** 2);
       radius = Math.max(radius, distance);
     });
@@ -71,7 +81,7 @@ export class ShapeInstance {
   constructor({ identifier, translation, scale, rotation }) {
     this.identifier = identifier || shapes.unknown;
     this.translation = translation || new Vector3(0, 0, 0);
-    this.scale = scale || 0;
+    this.scale = scale ?? 1;
     this.rotation = rotation || new Vector3(0, 0, 0);
   }
 }
