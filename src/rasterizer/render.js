@@ -3,8 +3,20 @@ import { Canvas } from "../ray-tracer/canvas";
 import { Camera } from "./camera";
 import { Scene } from "./scene";
 
+export const RENDER_MODE = {
+  wireframe: "wireframe",
+  filled: "filled",
+};
+
+export const SHADING_MODE = {
+  flat: "flat",
+  gouraud: "gouraud",
+  phong: "phong",
+};
+
 export class Render {
   depthBuffer;
+  renderMode;
 
   constructor(config) {
     this.config = config;
@@ -16,8 +28,32 @@ export class Render {
     this.width = config.screenWidth;
     this.height = config.screenHeight;
 
+    this.renderMode = config.renderMode ?? RENDER_MODE.filled;
+    this.shadingMode = config.shadingMode ?? SHADING_MODE.flat;
+
+    this.ambientLight = config.ambientLight ?? 0.2;
+    this.lightDirection = config.lightDirection ?? new Vector3(-1, 1, -1);
+
     this.depthBuffer = new Float32Array(this.width * this.height);
     this.clearDepthBuffer();
+  }
+
+  setRenderMode(mode) {
+    if (!Object.values(RENDER_MODE).includes(mode)) {
+      throw new Error(`Unknown render mode: ${mode}`);
+    }
+
+    this.renderMode = mode;
+    this.renderScene();
+  }
+
+  setShadingMode(mode) {
+    if (!Object.values(SHADING_MODE).includes(mode)) {
+      throw new Error(`Unknown shading mode: ${mode}`);
+    }
+
+    this.shadingMode = mode;
+    this.renderScene();
   }
 
   clearDepthBuffer() {
@@ -43,8 +79,10 @@ export class Render {
 
     const hasDepth = Number.isFinite(depth) && depth > 0;
 
-    if (hasDepth && depth > this.depthBuffer[index]) {
-      this.depthBuffer[index] = depth;
+    if (!hasDepth || depth > this.depthBuffer[index]) {
+      if (hasDepth) {
+        this.depthBuffer[index] = depth;
+      }
 
       const { x: r, y: g, z: b } = color;
 
@@ -179,12 +217,19 @@ export class Render {
         continue;
       }
 
+      const flatIntensity = this.calculateFlatIntensity(
+        vertices[0],
+        vertices[1],
+        vertices[2],
+      );
+
       for (let i = 1; i < clipped.length - 1; i++) {
         this.renderTriangel({
           p0: clipped[0],
           p1: clipped[i],
           p2: clipped[i + 1],
           color: triangle.color,
+          flatIntensity,
         });
       }
     }
@@ -378,6 +423,24 @@ export class Render {
       color,
     };
 
+    if (this.renderMode === RENDER_MODE.wireframe) {
+      this.drawFrameTri(projectedTriangle);
+      return;
+    }
+
+    if (this.shadingMode === SHADING_MODE.flat) {
+      const intensity = triangle.flatIntensity ?? 1;
+
+      const flatColor = new Vector3(
+        color.x * intensity,
+        color.y * intensity,
+        color.z * intensity,
+      );
+
+      this.drawShadedTri(projectedTriangle, flatColor);
+      return;
+    }
+
     this.drawShadedTri(projectedTriangle, color);
   }
 
@@ -405,6 +468,31 @@ export class Render {
     if (outside) return;
 
     this.renderShape({ shape, instance });
+  }
+
+  normalize(vector) {
+    const length = Math.sqrt(
+      vector.x * vector.x + vector.y * vector.y + vector.z * vector.z,
+    );
+
+    if (length === 0) {
+      return new Vector3(0, 0, 0);
+    }
+
+    return new Vector3(vector.x / length, vector.y / length, vector.z / length);
+  }
+
+  calculateFlatIntensity(p0, p1, p2) {
+    const normal = this.normalize(this.getTriangleNormal(p0, p1, p2));
+
+    const light = this.normalize(this.lightDirection);
+
+    const diffuse = Math.max(
+      0,
+      normal.x * light.x + normal.y * light.y + normal.z * light.z,
+    );
+
+    return this.ambientLight + (1 - this.ambientLight) * diffuse;
   }
 
   interpolate({ x: i0, y: d0 }, { x: i1, y: d1 }) {

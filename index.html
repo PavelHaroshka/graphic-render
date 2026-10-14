@@ -1,36 +1,58 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="main.css" />
-    <title>Renderer Demo</title>
-  </head>
-  <body>
-    <div class="container">
-      <h1>Renderer Demo</h1>
 
-      <!-- Tabs -->
-      <input type="radio" name="tab" id="raytracer" checked />
-      <input type="radio" name="tab" id="rasterizer" />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="main.css" />
+  <title>Renderer Demo</title>
+</head>
 
-      <div class="tabs">
-        <label for="raytracer">Raytracer</label>
-        <label for="rasterizer">Rasterizer</label>
-      </div>
+<body>
+  <div class="container">
+    <h1>Renderer Demo</h1>
 
-      <div class="content">
-        <div class="panel raytracer">
-          <div class="title">Raytracer Demo</div>
-          <canvas id="ray-tracer-demo"></canvas>
+    <!-- Tabs -->
+    <input type="radio" name="tab" id="rasterizer" checked />
+    <input type="radio" name="tab" id="raytracer" />
+
+    <div class="tabs">
+      <label for="rasterizer">Rasterizer</label>
+      <label for="raytracer">Raytracer</label>
+    </div>
+
+    <div class="content">
+      <div class="panel rasterizer">
+        <div class="title">Rasterizer Demo</div>
+
+        <div class="controls">
+          <div class="control-group">
+            <label for="shadow-mode">Shadow Mode</label>
+            <select id="shadow-mode">
+              <option value="falt">Flat</option>
+            </select>
+          </div>
+
+          <div class="control-group">
+            <label for="render-mode">Render Mode</label>
+            <select id="render-mode">
+              <option value="filled">Filled</option>
+              <option value="wireframe">Wireframe</option>
+            </select>
+          </div>
         </div>
 
-        <div class="panel rasterizer">
-          <div class="title">Rasterizer Demo</div>
-          <canvas id="rasterizer-demo"></canvas>
-        </div>
+        <canvas id="rasterizer-demo" width="640" height="640"></canvas>
       </div>
     </div>
-    <script type="module" src="/src/main.js"></script>
-  </body>
+
+    <div class="panel raytracer">
+      <div class="title">Raytracer Demo</div>
+      <canvas id="ray-tracer-demo"></canvas>
+    </div>
+  </div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+
 </html>
