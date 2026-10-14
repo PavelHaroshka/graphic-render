@@ -81,5 +81,6 @@ export class ShapeInstance {
 
 export const shapes = {
   cube: "cube",
-  unknown: "",
+  sphere: "sphere",
+  cylinder: "cylinder",
 };

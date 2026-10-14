@@ -10,8 +10,8 @@ export const initRaytracer = () => {
   const render = new Render(
     {
       elementId: "ray-tracer-demo",
-      screenWidth: 320,
-      screenHeight: 320,
+      screenWidth: 640,
+      screenHeight: 640,
     },
     {
       shapes: [

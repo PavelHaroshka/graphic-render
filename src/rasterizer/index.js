@@ -1,7 +1,8 @@
 import { Vector3 } from "threejs-math";
 
 import { Render, RENDER_MODE, SHADING_MODE } from "./render";
-import { Shape, ShapeInstance, shapes } from "./shapes";
+import { ShapeInstance, shapes } from "./shapes";
+import { createMeshes } from "./meshes";
 
 const shadowMode = document.getElementById("shadow-mode");
 const renderMode = document.getElementById("render-mode");
@@ -36,75 +37,57 @@ const getSelectedMode = (select, modes, fallback) => {
 };
 
 export const initRasterizer = () => {
-  const cube = new Shape(
-    shapes.cube,
-    [
-      new Vector3(1, 1, 1),
-      new Vector3(-1, 1, 1),
-      new Vector3(-1, -1, 1),
-      new Vector3(1, -1, 1),
-      new Vector3(1, 1, -1),
-      new Vector3(-1, 1, -1),
-      new Vector3(-1, -1, -1),
-      new Vector3(1, -1, -1),
-    ],
-    [
-      { p0: 0, p1: 1, p2: 2, color: new Vector3(255, 255, 255) },
-      { p0: 0, p1: 2, p2: 3, color: new Vector3(255, 255, 255) },
-
-      { p0: 4, p1: 0, p2: 3, color: new Vector3(255, 255, 0) },
-      { p0: 4, p1: 3, p2: 7, color: new Vector3(255, 255, 0) },
-
-      { p0: 5, p1: 4, p2: 7, color: new Vector3(255, 0, 0) },
-      { p0: 5, p1: 7, p2: 6, color: new Vector3(255, 0, 0) },
-
-      { p0: 1, p1: 5, p2: 6, color: new Vector3(0, 255, 0) },
-      { p0: 1, p1: 6, p2: 2, color: new Vector3(0, 255, 0) },
-
-      { p0: 4, p1: 5, p2: 1, color: new Vector3(0, 0, 255) },
-      { p0: 4, p1: 1, p2: 0, color: new Vector3(0, 0, 255) },
-
-      { p0: 2, p1: 6, p2: 7, color: new Vector3(42, 42, 42) },
-      { p0: 2, p1: 7, p2: 3, color: new Vector3(42, 42, 42) },
-    ],
-  );
+  const meshShapes = createMeshes();
 
   const instances = [
     {
-      label: "center",
-      translation: new Vector3(0, 0, 7),
-      rotation: new Vector3(0, 0.5, 0),
+      label: "cube",
+      identifier: shapes.cube,
+      translation: new Vector3(-3, 0, 8),
+      rotation: new Vector3(0.3, 0.5, 0),
+      scale: 1,
     },
     {
-      label: "left",
-      translation: new Vector3(-4, 0, 7),
-      rotation: new Vector3(0, 0.3, 0),
-    },
-    {
-      label: "right-outside",
-      translation: new Vector3(20, 0, 7),
+      label: "sphere",
+      identifier: shapes.sphere,
+      translation: new Vector3(0, 0, 8),
       rotation: new Vector3(0, 0, 0),
+      scale: 1.2,
+    },
+    {
+      label: "cylinder",
+      identifier: shapes.cylinder,
+      translation: new Vector3(3, 0, 8),
+      rotation: new Vector3(0.2, 0.4, 0),
+      scale: 1,
+    },
+    {
+      label: "outside-frustum",
+      identifier: shapes.sphere,
+      translation: new Vector3(20, 0, 8),
+      rotation: new Vector3(0, 0, 0),
+      scale: 1,
     },
     {
       label: "behind-camera",
+      identifier: shapes.cylinder,
       translation: new Vector3(0, 0, -5),
       rotation: new Vector3(0, 0, 0),
-    },
-    {
-      label: "near-plane",
-      translation: new Vector3(0, 0, 0.5),
-      rotation: new Vector3(0, 0.2, 0),
+      scale: 1,
     },
   ];
 
   const objects = instances.map(
-    ({ translation, rotation }) =>
-      new ShapeInstance({
-        identifier: shapes.cube,
+    ({ identifier, translation, rotation, scale }) => {
+      const instance = new ShapeInstance({
+        identifier,
         translation,
-        scale: 1,
+        scale,
         rotation,
-      }),
+      });
+
+      return instance;
+    },
   );
 
   objects.forEach((instance, index) => {
@@ -121,7 +104,7 @@ export const initRasterizer = () => {
       screenHeight: 640,
       renderMode: getSelectedMode(renderMode, RENDER_MODE, RENDER_MODE.filled),
       shadingMode: getSelectedMode(shadowMode, SHADING_MODE, SHADING_MODE.flat),
-      shapes: [cube],
+      shapes: meshShapes,
       objects,
     });
 

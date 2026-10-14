@@ -1,10 +1,8 @@
 export class Scene {
-  shapes = {};
-
-  constructor({ shapes, objects }) {
-    shapes.forEach((shape) => {
-      this.shapes[shape.identifier] = shape;
-    });
+  constructor({ shapes = [], objects = [] }) {
+    this.shapes = Object.fromEntries(
+      shapes.map((shape) => [shape.identifier, shape]),
+    );
 
     this.objects = objects;
   }

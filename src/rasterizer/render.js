@@ -187,11 +187,102 @@ export class Render {
     }
   }
 
+  drawPhongTri(triangle, color) {
+    const { p0, p1, p2 } = triangle;
+
+    const edge1x = p1.x - p0.x;
+    const edge1y = p1.y - p0.y;
+    const edge2x = p2.x - p0.x;
+    const edge2y = p2.y - p0.y;
+
+    const area = edge1x * edge2y - edge1y * edge2x;
+
+    if (Math.abs(area) < 1e-8) return;
+
+    const minX = Math.floor(Math.min(p0.x, p1.x, p2.x));
+    const maxX = Math.ceil(Math.max(p0.x, p1.x, p2.x));
+    const minY = Math.floor(Math.min(p0.y, p1.y, p2.y));
+    const maxY = Math.ceil(Math.max(p0.y, p1.y, p2.y));
+
+    const light = this.normalize(this.lightDirection);
+
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        const px = x + 0.5;
+        const py = y + 0.5;
+
+        const w0 =
+          ((p1.x - px) * (p2.y - py) - (p1.y - py) * (p2.x - px)) / area;
+
+        const w1 =
+          ((p2.x - px) * (p0.y - py) - (p2.y - py) * (p0.x - px)) / area;
+
+        const w2 = 1 - w0 - w1;
+
+        if (w0 < 0 || w1 < 0 || w2 < 0) continue;
+
+        const invZ = w0 * p0.invZ + w1 * p1.invZ + w2 * p2.invZ;
+
+        if (invZ <= 0) continue;
+
+        const nx =
+          (w0 * p0.nx * p0.invZ + w1 * p1.nx * p1.invZ + w2 * p2.nx * p2.invZ) /
+          invZ;
+
+        const ny =
+          (w0 * p0.ny * p0.invZ + w1 * p1.ny * p1.invZ + w2 * p2.ny * p2.invZ) /
+          invZ;
+
+        const nz =
+          (w0 * p0.nz * p0.invZ + w1 * p1.nz * p1.invZ + w2 * p2.nz * p2.invZ) /
+          invZ;
+
+        const normal = this.normalize(new Vector3(nx, ny, nz));
+
+        const diffuse = Math.max(0, normal.dot(light));
+
+        const intensity = this.ambientLight + (1 - this.ambientLight) * diffuse;
+
+        const shadedColor = new Vector3(
+          color.x * intensity,
+          color.y * intensity,
+          color.z * intensity,
+        );
+
+        this.putPixel(x, y, shadedColor, invZ);
+      }
+    }
+  }
+
   renderShape({ shape, instance }) {
-    const transformed = shape.verticies.map((vertex) => ({
-      ...this.transformShape(vertex, instance),
-      h: vertex.h ?? 1,
-    }));
+    const transformed = shape.verticies.map((vertex) =>
+      this.transformShape(vertex, instance),
+    );
+
+    const needsVertexNormals =
+      this.shadingMode === SHADING_MODE.gouraud ||
+      this.shadingMode === SHADING_MODE.phong;
+
+    let shadedVertices = transformed;
+
+    if (needsVertexNormals) {
+      const vertexNormals = this.calculateVertexNormals(shape, transformed);
+
+      shadedVertices = transformed.map((vertex, index) => {
+        const normal = vertexNormals[index];
+
+        return {
+          ...vertex,
+          h:
+            this.shadingMode === SHADING_MODE.gouraud
+              ? this.calculateVertexIntensity(normal)
+              : 1,
+          nx: normal.x,
+          ny: normal.y,
+          nz: normal.z,
+        };
+      });
+    }
 
     for (const triangle of shape.triangles) {
       const vertices = [triangle.p0, triangle.p1, triangle.p2].map((point) => {
@@ -206,7 +297,7 @@ export class Render {
           throw new Error("Triangle vertex not found in shape.verticies");
         }
 
-        return transformed[index];
+        return shadedVertices[index];
       });
 
       const clipped = this.clipTriangle(vertices);
@@ -217,11 +308,10 @@ export class Render {
         continue;
       }
 
-      const flatIntensity = this.calculateFlatIntensity(
-        vertices[0],
-        vertices[1],
-        vertices[2],
-      );
+      const flatIntensity =
+        this.shadingMode === SHADING_MODE.flat
+          ? this.calculateFlatIntensity(vertices[0], vertices[1], vertices[2])
+          : undefined;
 
       for (let i = 1; i < clipped.length - 1; i++) {
         this.renderTriangel({
@@ -332,6 +422,10 @@ export class Render {
         y: a.y + t * (b.y - a.y),
         z: a.z + t * (b.z - a.z),
         h: (a.h ?? 1) + t * ((b.h ?? 1) - (a.h ?? 1)),
+
+        nx: (a.nx ?? 0) + t * ((b.nx ?? 0) - (a.nx ?? 0)),
+        ny: (a.ny ?? 0) + t * ((b.ny ?? 0) - (a.ny ?? 0)),
+        nz: (a.nz ?? 0) + t * ((b.nz ?? 0) - (a.nz ?? 0)),
       };
     };
 
@@ -411,7 +505,10 @@ export class Render {
       return {
         x: projected.x,
         y: projected.y,
-        h: point.h ?? 1,
+        h: this.shadingMode === SHADING_MODE.gouraud ? (point.h ?? 1) : 1,
+        nx: point.nx ?? 0,
+        ny: point.ny ?? 0,
+        nz: point.nz ?? 0,
         invZ: 1 / point.z,
       };
     };
@@ -438,6 +535,16 @@ export class Render {
       );
 
       this.drawShadedTri(projectedTriangle, flatColor);
+      return;
+    }
+
+    if (this.shadingMode === SHADING_MODE.gouraud) {
+      this.drawShadedTri(projectedTriangle, color);
+      return;
+    }
+
+    if (this.shadingMode === SHADING_MODE.phong) {
+      this.drawPhongTri(projectedTriangle, color);
       return;
     }
 
@@ -491,6 +598,49 @@ export class Render {
       0,
       normal.x * light.x + normal.y * light.y + normal.z * light.z,
     );
+
+    return this.ambientLight + (1 - this.ambientLight) * diffuse;
+  }
+
+  calculateVertexNormals(shape, transformedVertices) {
+    const normals = transformedVertices.map(() => new Vector3(0, 0, 0));
+
+    for (const triangle of shape.triangles) {
+      const getIndex = (point) =>
+        shape.verticies.findIndex(
+          (vertex) =>
+            vertex.x === point.x &&
+            vertex.y === point.y &&
+            vertex.z === point.z,
+        );
+
+      const i0 = getIndex(triangle.p0);
+      const i1 = getIndex(triangle.p1);
+      const i2 = getIndex(triangle.p2);
+
+      if (i0 < 0 || i1 < 0 || i2 < 0) continue;
+
+      const normal = this.getTriangleNormal(
+        transformedVertices[i0],
+        transformedVertices[i1],
+        transformedVertices[i2],
+      );
+
+      for (const index of [i0, i1, i2]) {
+        normals[index].x += normal.x;
+        normals[index].y += normal.y;
+        normals[index].z += normal.z;
+      }
+    }
+
+    return normals.map((normal) => this.normalize(normal));
+  }
+
+  calculateVertexIntensity(normal) {
+    const N = this.normalize(normal);
+    const L = this.normalize(this.lightDirection);
+
+    const diffuse = Math.max(0, N.x * L.x + N.y * L.y + N.z * L.z);
 
     return this.ambientLight + (1 - this.ambientLight) * diffuse;
   }
