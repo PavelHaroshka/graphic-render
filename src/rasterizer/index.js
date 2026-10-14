@@ -2,7 +2,9 @@ import { Vector3 } from "threejs-math";
 
 import { Render, RENDER_MODE, SHADING_MODE } from "./render";
 import { ShapeInstance, shapes } from "./shapes";
-import { createMeshes } from "./meshes";
+import { createCube } from "./meshes";
+
+import { redFlatMaterial, texturedMaterial } from "./material";
 
 const shadowMode = document.getElementById("shadow-mode");
 const renderMode = document.getElementById("render-mode");
@@ -36,8 +38,8 @@ const getSelectedMode = (select, modes, fallback) => {
   return selected ? selected[1] : fallback;
 };
 
-export const initRasterizer = () => {
-  const meshShapes = createMeshes();
+export const initRasterizer = async () => {
+  const meshShapes = [await createCube(texturedMaterial)];
 
   const instances = [
     {

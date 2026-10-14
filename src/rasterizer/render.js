@@ -29,7 +29,6 @@ export class Render {
     this.height = config.screenHeight;
 
     this.renderMode = config.renderMode ?? RENDER_MODE.filled;
-    this.shadingMode = config.shadingMode ?? SHADING_MODE.flat;
 
     this.ambientLight = config.ambientLight ?? 0.2;
     this.lightDirection = config.lightDirection ?? new Vector3(-1, 1, -1);
@@ -44,15 +43,6 @@ export class Render {
     }
 
     this.renderMode = mode;
-    this.renderScene();
-  }
-
-  setShadingMode(mode) {
-    if (!Object.values(SHADING_MODE).includes(mode)) {
-      throw new Error(`Unknown shading mode: ${mode}`);
-    }
-
-    this.shadingMode = mode;
     this.renderScene();
   }
 
@@ -124,7 +114,7 @@ export class Render {
     this.drawLine(p2, p0, color);
   }
 
-  drawShadedTri({ p0, p1, p2 }, color) {
+  drawShadedTri({ p0, p1, p2 }, material, color) {
     const vertices = [p0, p1, p2].sort((a, b) => a.y - b.y);
 
     const [v0, v1, v2] = vertices;
@@ -156,6 +146,8 @@ export class Render {
           x: a.x + t * (b.x - a.x),
           h: a.h + t * (b.h - a.h),
           invZ: a.invZ + t * (b.invZ - a.invZ),
+          uOverZ: a.u * a.invZ + t * (b.u * b.invZ - a.u * a.invZ),
+          vOverZ: a.v * a.invZ + t * (b.v * b.invZ - a.v * a.invZ),
         });
       }
 
@@ -176,18 +168,30 @@ export class Render {
 
         const invZ = left.invZ + t * (right.invZ - left.invZ);
 
-        const shadedColor = new Vector3(
-          color.x * intensity,
-          color.y * intensity,
-          color.z * intensity,
-        );
+        if (invZ <= 0) continue;
+
+        const uOverZ = left.uOverZ + t * (right.uOverZ - left.uOverZ);
+
+        const vOverZ = left.vOverZ + t * (right.vOverZ - left.vOverZ);
+
+        const u = uOverZ / invZ;
+        const v = vOverZ / invZ;
+
+        const texel = material.texture ? material.texture.sample(u, v) : color;
+        const shadedColor = material.texture
+          ? new Vector3(texel.x, texel.y, texel.z)
+          : new Vector3(
+              color.x * intensity,
+              color.y * intensity,
+              color.z * intensity,
+            );
 
         this.putPixel(x, y, shadedColor, invZ);
       }
     }
   }
 
-  drawPhongTri(triangle, color) {
+  drawPhongTri(triangle, material, color) {
     const { p0, p1, p2 } = triangle;
 
     const edge1x = p1.x - p0.x;
@@ -221,9 +225,11 @@ export class Render {
 
         if (w0 < 0 || w1 < 0 || w2 < 0) continue;
 
-        const invZ = w0 * p0.invZ + w1 * p1.invZ + w2 * p2.invZ;
+        const uv = this.interpolateUV(p0, p1, p2, w0, w1, w2);
 
-        if (invZ <= 0) continue;
+        if (!uv) continue;
+
+        const { u, v, invZ } = uv;
 
         const nx =
           (w0 * p0.nx * p0.invZ + w1 * p1.nx * p1.invZ + w2 * p2.nx * p2.invZ) /
@@ -243,11 +249,14 @@ export class Render {
 
         const intensity = this.ambientLight + (1 - this.ambientLight) * diffuse;
 
-        const shadedColor = new Vector3(
-          color.x * intensity,
-          color.y * intensity,
-          color.z * intensity,
-        );
+        const texel = material.texture ? material.texture.sample(u, v) : color;
+        const shadedColor = material.texture
+          ? new Vector3(texel.x, texel.y, texel.z)
+          : new Vector3(
+              color.x * intensity,
+              color.y * intensity,
+              color.z * intensity,
+            );
 
         this.putPixel(x, y, shadedColor, invZ);
       }
@@ -255,13 +264,16 @@ export class Render {
   }
 
   renderShape({ shape, instance }) {
+    const material = this.getMaterial(shape.material);
+    const shadingMode = material.shading;
+
     const transformed = shape.verticies.map((vertex) =>
       this.transformShape(vertex, instance),
     );
 
     const needsVertexNormals =
-      this.shadingMode === SHADING_MODE.gouraud ||
-      this.shadingMode === SHADING_MODE.phong;
+      shadingMode === SHADING_MODE.gouraud ||
+      shadingMode === SHADING_MODE.phong;
 
     let shadedVertices = transformed;
 
@@ -274,7 +286,7 @@ export class Render {
         return {
           ...vertex,
           h:
-            this.shadingMode === SHADING_MODE.gouraud
+            shadingMode === SHADING_MODE.gouraud
               ? this.calculateVertexIntensity(normal)
               : 1,
           nx: normal.x,
@@ -285,20 +297,16 @@ export class Render {
     }
 
     for (const triangle of shape.triangles) {
-      const vertices = [triangle.p0, triangle.p1, triangle.p2].map((point) => {
-        const index = shape.verticies.findIndex(
-          (vertex) =>
-            vertex.x === point.x &&
-            vertex.y === point.y &&
-            vertex.z === point.z,
-        );
+      const [i0, i1, i2] = triangle.vertexIndices;
 
-        if (index === -1) {
-          throw new Error("Triangle vertex not found in shape.verticies");
-        }
+      const indices = [i0, i1, i2];
+      const uvs = [triangle.uv0, triangle.uv1, triangle.uv2];
 
-        return shadedVertices[index];
-      });
+      const vertices = indices.map((index, i) => ({
+        ...shadedVertices[index],
+        u: uvs[i]?.x ?? 0,
+        v: uvs[i]?.y ?? 0,
+      }));
 
       const clipped = this.clipTriangle(vertices);
 
@@ -309,7 +317,7 @@ export class Render {
       }
 
       const flatIntensity =
-        this.shadingMode === SHADING_MODE.flat
+        shadingMode === SHADING_MODE.flat
           ? this.calculateFlatIntensity(vertices[0], vertices[1], vertices[2])
           : undefined;
 
@@ -319,6 +327,7 @@ export class Render {
           p1: clipped[i],
           p2: clipped[i + 1],
           color: triangle.color,
+          material,
           flatIntensity,
         });
       }
@@ -414,6 +423,9 @@ export class Render {
 
     const result = [];
 
+    const interpolateAttribute = (a, b, t) =>
+      (a ?? 0) + t * ((b ?? 0) - (a ?? 0));
+
     const intersect = (a, b, da, db) => {
       const t = da / (da - db);
 
@@ -426,6 +438,9 @@ export class Render {
         nx: (a.nx ?? 0) + t * ((b.nx ?? 0) - (a.nx ?? 0)),
         ny: (a.ny ?? 0) + t * ((b.ny ?? 0) - (a.ny ?? 0)),
         nz: (a.nz ?? 0) + t * ((b.nz ?? 0) - (a.nz ?? 0)),
+
+        u: interpolateAttribute(a.u, b.u, t),
+        v: interpolateAttribute(a.v, b.v, t),
       };
     };
 
@@ -497,7 +512,11 @@ export class Render {
 
   renderTriangel(triangle) {
     const { p0, p1, p2 } = triangle;
-    const color = triangle.color ?? new Vector3(255, 255, 255);
+    const material = triangle.material;
+    const shadingMode = material.shading;
+
+    const color =
+      triangle.color ?? material.color ?? new Vector3(255, 255, 255);
 
     const project = (point) => {
       const projected = this.camera.projectVertex(point);
@@ -505,11 +524,13 @@ export class Render {
       return {
         x: projected.x,
         y: projected.y,
-        h: this.shadingMode === SHADING_MODE.gouraud ? (point.h ?? 1) : 1,
+        h: shadingMode === SHADING_MODE.gouraud ? (point.h ?? 1) : 1,
         nx: point.nx ?? 0,
         ny: point.ny ?? 0,
         nz: point.nz ?? 0,
         invZ: 1 / point.z,
+        u: point.u,
+        v: point.v,
       };
     };
 
@@ -525,7 +546,7 @@ export class Render {
       return;
     }
 
-    if (this.shadingMode === SHADING_MODE.flat) {
+    if (shadingMode === SHADING_MODE.flat) {
       const intensity = triangle.flatIntensity ?? 1;
 
       const flatColor = new Vector3(
@@ -534,21 +555,21 @@ export class Render {
         color.z * intensity,
       );
 
-      this.drawShadedTri(projectedTriangle, flatColor);
+      this.drawShadedTri(projectedTriangle, material, flatColor);
       return;
     }
 
-    if (this.shadingMode === SHADING_MODE.gouraud) {
-      this.drawShadedTri(projectedTriangle, color);
+    if (shadingMode === SHADING_MODE.gouraud) {
+      this.drawShadedTri(projectedTriangle, material, color);
       return;
     }
 
-    if (this.shadingMode === SHADING_MODE.phong) {
-      this.drawPhongTri(projectedTriangle, color);
+    if (shadingMode === SHADING_MODE.phong) {
+      this.drawPhongTri(projectedTriangle, material, color);
       return;
     }
 
-    this.drawShadedTri(projectedTriangle, color);
+    this.drawShadedTri(projectedTriangle, material, color);
   }
 
   renderScene() {
@@ -603,37 +624,40 @@ export class Render {
   }
 
   calculateVertexNormals(shape, transformedVertices) {
-    const normals = transformedVertices.map(() => new Vector3(0, 0, 0));
+    const vertexNormals = transformedVertices.map(() => new Vector3(0, 0, 0));
 
     for (const triangle of shape.triangles) {
-      const getIndex = (point) =>
-        shape.verticies.findIndex(
-          (vertex) =>
-            vertex.x === point.x &&
-            vertex.y === point.y &&
-            vertex.z === point.z,
-        );
+      const [i0, i1, i2] = triangle.vertexIndices;
 
-      const i0 = getIndex(triangle.p0);
-      const i1 = getIndex(triangle.p1);
-      const i2 = getIndex(triangle.p2);
+      const v0 = transformedVertices[i0];
+      const v1 = transformedVertices[i1];
+      const v2 = transformedVertices[i2];
 
-      if (i0 < 0 || i1 < 0 || i2 < 0) continue;
+      const edge1 = new Vector3(v1.x - v0.x, v1.y - v0.y, v1.z - v0.z);
 
-      const normal = this.getTriangleNormal(
-        transformedVertices[i0],
-        transformedVertices[i1],
-        transformedVertices[i2],
+      const edge2 = new Vector3(v2.x - v0.x, v2.y - v0.y, v2.z - v0.z);
+
+      const normal = new Vector3(
+        edge1.y * edge2.z - edge1.z * edge2.y,
+        edge1.z * edge2.x - edge1.x * edge2.z,
+        edge1.x * edge2.y - edge1.y * edge2.x,
       );
 
-      for (const index of [i0, i1, i2]) {
-        normals[index].x += normal.x;
-        normals[index].y += normal.y;
-        normals[index].z += normal.z;
-      }
+      vertexNormals[i0].add(normal);
+      vertexNormals[i1].add(normal);
+      vertexNormals[i2].add(normal);
     }
 
-    return normals.map((normal) => this.normalize(normal));
+    return vertexNormals.map((normal) => {
+      const lengthSq =
+        normal.x * normal.x + normal.y * normal.y + normal.z * normal.z;
+
+      if (lengthSq === 0) {
+        return new Vector3(0, 0, 0);
+      }
+
+      return normal.normalize();
+    });
   }
 
   calculateVertexIntensity(normal) {
@@ -660,5 +684,28 @@ export class Render {
     }
 
     return values;
+  }
+
+  interpolateUV(p0, p1, p2, w0, w1, w2) {
+    const invZ = w0 * p0.invZ + w1 * p1.invZ + w2 * p2.invZ;
+
+    if (invZ <= 0) return null;
+
+    const u =
+      (w0 * p0.u * p0.invZ + w1 * p1.u * p1.invZ + w2 * p2.u * p2.invZ) / invZ;
+
+    const v =
+      (w0 * p0.v * p0.invZ + w1 * p1.v * p1.invZ + w2 * p2.v * p2.invZ) / invZ;
+
+    return { u, v, invZ };
+  }
+
+  getMaterial(material = {}) {
+    return {
+      shading: SHADING_MODE.flat,
+      texture: null,
+      color: null,
+      ...material,
+    };
   }
 }

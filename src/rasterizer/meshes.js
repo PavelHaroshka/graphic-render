@@ -1,4 +1,4 @@
-import { Vector3 } from "threejs-math";
+import { Vector2, Vector3 } from "threejs-math";
 import { Shape, shapes } from "./shapes";
 
 const color = (r, g, b) => new Vector3(r, g, b);
@@ -14,41 +14,53 @@ const triangle = (p0, p1, p2, color) => ({
   color,
 });
 
-const createCube = () =>
-  new Shape(
-    shapes.cube,
-    [
-      new Vector3(1, 1, 1),
-      new Vector3(-1, 1, 1),
-      new Vector3(-1, -1, 1),
-      new Vector3(1, -1, 1),
-      new Vector3(1, 1, -1),
-      new Vector3(-1, 1, -1),
-      new Vector3(-1, -1, -1),
-      new Vector3(1, -1, -1),
-    ],
-    [
-      triangle(0, 1, 2, white),
-      triangle(0, 2, 3, white),
+export const createCube = (material = null) => {
+  const vertices = [
+    new Vector3(1, 1, 1),
+    new Vector3(-1, 1, 1),
+    new Vector3(-1, -1, 1),
+    new Vector3(1, -1, 1),
+    new Vector3(1, 1, -1),
+    new Vector3(-1, 1, -1),
+    new Vector3(-1, -1, -1),
+    new Vector3(1, -1, -1),
+  ];
 
-      triangle(4, 0, 3, color(255, 255, 0)),
-      triangle(4, 3, 7, color(255, 255, 0)),
+  const uvs = [
+    new Vector2(1, 0),
+    new Vector2(0, 0),
+    new Vector2(0, 1),
+    new Vector2(1, 1),
+    new Vector2(0, 0),
+    new Vector2(1, 0),
+    new Vector2(1, 1),
+    new Vector2(0, 1),
+  ];
 
-      triangle(5, 4, 7, color(255, 0, 0)),
-      triangle(5, 7, 6, color(255, 0, 0)),
+  const triangles = [
+    triangle(0, 1, 2),
+    triangle(0, 2, 3),
 
-      triangle(1, 5, 6, color(0, 255, 0)),
-      triangle(1, 6, 2, color(0, 255, 0)),
+    triangle(4, 0, 3),
+    triangle(4, 3, 7),
 
-      triangle(4, 5, 1, color(0, 0, 255)),
-      triangle(4, 1, 0, color(0, 0, 255)),
+    triangle(5, 4, 7),
+    triangle(5, 7, 6),
 
-      triangle(2, 6, 7, color(42, 42, 42)),
-      triangle(2, 7, 3, color(42, 42, 42)),
-    ],
-  );
+    triangle(1, 5, 6),
+    triangle(1, 6, 2),
 
-const createSphere = (segments = 20, rings = 12) => {
+    triangle(4, 5, 1),
+    triangle(4, 1, 0),
+
+    triangle(2, 6, 7),
+    triangle(2, 7, 3),
+  ];
+
+  return new Shape(shapes.cube, vertices, triangles, uvs, material);
+};
+
+export const createSphere = (segments = 20, rings = 12) => {
   const vertices = [];
   const triangles = [];
 
@@ -90,7 +102,7 @@ const createSphere = (segments = 20, rings = 12) => {
   return new Shape(shapes.sphere, vertices, triangles);
 };
 
-const createCylinder = (segments = 20) => {
+export const createCylinder = (segments = 20) => {
   const vertices = [];
   const triangles = [];
 
@@ -131,9 +143,3 @@ const createCylinder = (segments = 20) => {
 
   return new Shape(shapes.cylinder, vertices, triangles);
 };
-
-export const createMeshes = () => [
-  createCube(),
-  createSphere(),
-  createCylinder(),
-];

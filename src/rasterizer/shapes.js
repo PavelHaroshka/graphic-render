@@ -12,10 +12,17 @@ export class Point {
 export class Triangle {
   color = new Vector3(255, 255, 255);
 
-  constructor(p0, p1, p2, color) {
+  constructor({ p0, p1, p2, uv0, uv1, uv2, color, vertexIndices }) {
     this.p0 = p0;
     this.p1 = p1;
     this.p2 = p2;
+
+    this.uv0 = uv0;
+    this.uv1 = uv1;
+    this.uv2 = uv2;
+
+    this.vertexIndices = vertexIndices;
+
     this.color = color ?? new Vector3(255, 255, 255);
   }
 }
@@ -23,24 +30,32 @@ export class Triangle {
 export class Shape {
   identifier = "";
   verticies = [];
+  uvs = [];
   triangles = [];
   boundingSphere = {
     center: new Vector3(0, 0, 0),
     radius: 0,
   };
+  material = null;
 
-  constructor(identifier, verticies, edges) {
+  constructor(identifier, verticies, edges, uvs, material) {
     this.identifier = identifier;
     this.verticies = verticies;
+    this.uvs = uvs || [];
+    this.material = material;
 
     this.triangles = edges.map(
       ({ p0, p1, p2, color }) =>
-        new Triangle(
-          this.verticies[p0],
-          this.verticies[p1],
-          this.verticies[p2],
-          color,
-        ),
+        new Triangle({
+          p0: this.verticies[p0],
+          p1: this.verticies[p1],
+          p2: this.verticies[p2],
+          uv0: this.uvs[p0],
+          uv1: this.uvs[p1],
+          uv2: this.uvs[p2],
+          color: color ? color : material?.color,
+          vertexIndices: [p0, p1, p2],
+        }),
     );
 
     this.boundingSphere = this.getBoundinSphere(verticies);
