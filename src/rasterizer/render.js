@@ -1,32 +1,56 @@
 import { Matrix4, Vector3 } from "threejs-math";
 import { Canvas } from "../ray-tracer/canvas";
-import { clamp } from "../ray-tracer/math";
 import { Camera } from "./camera";
-import { Triangle } from "./shapes";
 import { Scene } from "./scene";
 
 export class Render {
+  depthBuffer;
+
   constructor(config) {
     this.config = config;
     this.canvas = new Canvas(config);
     this.canvas.clear();
     this.camera = new Camera(config);
     this.scene = new Scene(config);
+
+    this.width = config.screenWidth;
+    this.height = config.screenHeight;
+
+    this.depthBuffer = new Float32Array(this.width * this.height);
+    this.clearDepthBuffer();
   }
 
-  putPixel(x, y, color) {
+  clearDepthBuffer() {
+    this.depthBuffer.fill(0);
+  }
+
+  putPixel(x, y, color, depth) {
     const { screenHeight: Ch, screenWidth: Cw } = this.config;
 
-    const Cx = clamp(x, [-Cw / 2, Cw / 2]);
-    const Cy = clamp(y, [-Ch / 2, Ch / 2]);
+    const screenX = Math.floor(Cw / 2 + x);
+    const screenY = Math.floor(Ch / 2 - y);
 
-    const Sx = Cw / 2 + Cx;
-    const Sy = Ch / 2 - Cy;
+    if (
+      screenX < 0 ||
+      screenX >= this.width ||
+      screenY < 0 ||
+      screenY >= this.height
+    ) {
+      return;
+    }
 
-    const { x: r, y: g, z: b } = color;
+    const index = screenY * this.width + screenX;
 
-    this.canvas.ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-    this.canvas.ctx.fillRect(Sx, Sy, 1, 1);
+    const hasDepth = Number.isFinite(depth) && depth > 0;
+
+    if (hasDepth && depth > this.depthBuffer[index]) {
+      this.depthBuffer[index] = depth;
+
+      const { x: r, y: g, z: b } = color;
+
+      this.canvas.ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+      this.canvas.ctx.fillRect(screenX, screenY, 1, 1);
+    }
   }
 
   drawLine(P0, P1, color) {
@@ -93,6 +117,7 @@ export class Render {
         intersections.push({
           x: a.x + t * (b.x - a.x),
           h: a.h + t * (b.h - a.h),
+          invZ: a.invZ + t * (b.invZ - a.invZ),
         });
       }
 
@@ -111,13 +136,15 @@ export class Render {
 
         const intensity = left.h + t * (right.h - left.h);
 
+        const invZ = left.invZ + t * (right.invZ - left.invZ);
+
         const shadedColor = new Vector3(
           color.x * intensity,
           color.y * intensity,
           color.z * intensity,
         );
 
-        this.putPixel(x, y, shadedColor);
+        this.putPixel(x, y, shadedColor, invZ);
       }
     }
   }
@@ -333,17 +360,31 @@ export class Render {
     const { p0, p1, p2 } = triangle;
     const color = triangle.color ?? new Vector3(255, 255, 255);
 
-    const projectedTriangle = new Triangle(
-      this.camera.projectVertex(p0),
-      this.camera.projectVertex(p1),
-      this.camera.projectVertex(p2),
-      color,
-    );
+    const project = (point) => {
+      const projected = this.camera.projectVertex(point);
 
-    this.drawFrameTri(projectedTriangle, color);
+      return {
+        x: projected.x,
+        y: projected.y,
+        h: point.h ?? 1,
+        invZ: 1 / point.z,
+      };
+    };
+
+    const projectedTriangle = {
+      p0: project(p0),
+      p1: project(p1),
+      p2: project(p2),
+      color,
+    };
+
+    this.drawShadedTri(projectedTriangle, color);
   }
 
   renderScene() {
+    this.canvas.clear();
+    this.clearDepthBuffer();
+
     for (const shapeInstance of this.scene.objects) {
       this.renderInstance(shapeInstance);
     }
