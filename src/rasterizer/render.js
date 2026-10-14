@@ -123,26 +123,43 @@ export class Render {
   }
 
   renderShape({ shape, instance }) {
-    const projected = {};
-
-    for (const vertex of shape.verticies) {
-      const { x, y, z } = vertex;
-
-      const transformed = this.transformSape(vertex, instance);
-      const projectedVertex = this.camera.projectVertex(transformed);
-
-      projected[`${x}${y}${z}`] = {
-        ...projectedVertex,
-        h: vertex.h ?? 1,
-      };
-    }
+    const transformed = shape.verticies.map((vertex) => ({
+      ...this.transformShape(vertex, instance),
+      h: vertex.h ?? 1,
+    }));
 
     for (const triangle of shape.triangles) {
-      this.renderTriangel(triangle, projected);
+      const vertices = [triangle.p0, triangle.p1, triangle.p2].map((point) => {
+        const index = shape.verticies.findIndex(
+          (vertex) =>
+            vertex.x === point.x &&
+            vertex.y === point.y &&
+            vertex.z === point.z,
+        );
+
+        if (index === -1) {
+          throw new Error("Triangle vertex not found in shape.verticies");
+        }
+
+        return transformed[index];
+      });
+
+      const clipped = this.clipTriangle(vertices);
+
+      if (clipped.length < 3) continue;
+
+      for (let i = 1; i < clipped.length - 1; i++) {
+        this.renderTriangel({
+          p0: clipped[0],
+          p1: clipped[i],
+          p2: clipped[i + 1],
+          color: triangle.color,
+        });
+      }
     }
   }
 
-  transformSape(vertex, { scale, rotation, translation }) {
+  transformShape(vertex, { scale, rotation, translation }) {
     const scaled = this.scaleShape(vertex, scale);
     const rotated = this.rotateShape(scaled, rotation);
 
@@ -226,14 +243,69 @@ export class Render {
     };
   }
 
-  renderTriangel(triangle, projected) {
+  clipPolygonAgainstPlane(vertices, plane) {
+    if (vertices.length === 0) return [];
+
+    const result = [];
+
+    const intersect = (a, b, da, db) => {
+      const t = da / (da - db);
+
+      return {
+        x: a.x + t * (b.x - a.x),
+        y: a.y + t * (b.y - a.y),
+        z: a.z + t * (b.z - a.z),
+        h: (a.h ?? 1) + t * ((b.h ?? 1) - (a.h ?? 1)),
+      };
+    };
+
+    for (let i = 0; i < vertices.length; i++) {
+      const current = vertices[i];
+      const previous = vertices[(i + vertices.length - 1) % vertices.length];
+
+      const dc = plane(current);
+      const dp = plane(previous);
+
+      const currentInside = dc >= 0;
+      const previousInside = dp >= 0;
+
+      if (currentInside && previousInside) {
+        result.push(current);
+      } else if (previousInside && !currentInside) {
+        result.push(intersect(previous, current, dp, dc));
+      } else if (!previousInside && currentInside) {
+        result.push(intersect(previous, current, dp, dc));
+        result.push(current);
+      }
+    }
+
+    return result;
+  }
+
+  clipTriangle(vertices) {
+    const { Vw, Vh, d, near } = this.camera;
+    const planes = {
+      near: (v) => v.z - near,
+      left: (v) => v.x + (v.z * Vw) / (2 * d),
+      right: (v) => (v.z * Vw) / (2 * d) - v.x,
+      bottom: (v) => v.y + (v.z * Vh) / (2 * d),
+      top: (v) => (v.z * Vh) / (2 * d) - v.y,
+    };
+
+    return Object.values(planes).reduce(
+      (polygon, plane) => this.clipPolygonAgainstPlane(polygon, plane),
+      vertices,
+    );
+  }
+
+  renderTriangel(triangle) {
     const { p0, p1, p2 } = triangle;
     const color = triangle.color ?? new Vector3(255, 255, 255);
 
     const projectedTriangle = new Triangle(
-      projected[`${p0.x}${p0.y}${p0.z}`],
-      projected[`${p1.x}${p1.y}${p1.z}`],
-      projected[`${p2.x}${p2.y}${p2.z}`],
+      this.camera.projectVertex(p0),
+      this.camera.projectVertex(p1),
+      this.camera.projectVertex(p2),
       color,
     );
 
@@ -252,6 +324,7 @@ export class Render {
     if (!shape) return;
 
     const sphere = this.getShapeBoundingSphere(shape, instance);
+
     const outside = this.camera.isSphereOutsideFrustum(
       sphere.center,
       sphere.radius,
@@ -259,10 +332,7 @@ export class Render {
 
     if (outside) return;
 
-    this.renderShape({
-      instance,
-      shape,
-    });
+    this.renderShape({ shape, instance });
   }
 
   interpolate({ x: i0, y: d0 }, { x: i1, y: d1 }) {
