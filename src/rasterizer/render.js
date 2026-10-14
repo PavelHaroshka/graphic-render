@@ -131,12 +131,6 @@ export class Render {
       const transformed = this.transformSape(vertex, instance);
       const projectedVertex = this.camera.projectVertex(transformed);
 
-      console.log({
-        original: { x: vertex.x, y: vertex.y, z: vertex.z },
-        transformed,
-        projected: projectedVertex,
-      });
-
       projected[`${x}${y}${z}`] = {
         ...projectedVertex,
         h: vertex.h ?? 1,
@@ -216,6 +210,22 @@ export class Render {
     );
   }
 
+  getShapeBoundingSphere(shape, instance) {
+    const { center, radius } = shape.boundingSphere;
+    const { scale, rotation, translation } = instance;
+
+    const scaledCenter = this.scaleShape(center, scale);
+    const rotatedCenter = this.rotateShape(scaledCenter, rotation);
+    const worldCenter = this.translateShape(rotatedCenter, translation);
+
+    const worldRadius = radius * Math.abs(scale);
+
+    return {
+      center: worldCenter,
+      radius: worldRadius,
+    };
+  }
+
   renderTriangel(triangle, projected) {
     const { p0, p1, p2 } = triangle;
     const color = triangle.color ?? new Vector3(255, 255, 255);
@@ -227,7 +237,7 @@ export class Render {
       color,
     );
 
-    this.drawShadedTri(projectedTriangle, color);
+    this.drawFrameTri(projectedTriangle, color);
   }
 
   renderScene() {
@@ -237,9 +247,21 @@ export class Render {
   }
 
   renderInstance(instance) {
+    const shape = this.scene.shapes[instance.identifier];
+
+    if (!shape) return;
+
+    const sphere = this.getShapeBoundingSphere(shape, instance);
+    const outside = this.camera.isSphereOutsideFrustum(
+      sphere.center,
+      sphere.radius,
+    );
+
+    if (outside) return;
+
     this.renderShape({
       instance,
-      shape: this.scene.shapes[instance.identifier],
+      shape,
     });
   }
 

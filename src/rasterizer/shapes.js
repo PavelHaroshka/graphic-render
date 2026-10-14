@@ -26,7 +26,7 @@ export class Shape {
   triangles = [];
   boundingSphere = {
     center: new Vector3(0, 0, 0),
-    r: 0,
+    radius: 0,
   };
 
   constructor(identifier, verticies, edges) {
@@ -48,13 +48,6 @@ export class Shape {
 
   getBoundinSphere(verticies) {
     let radius = 0;
-
-    if (!verticies.length) {
-      return {
-        center: new Vector3(0, 0, 0),
-        radius: 0,
-      };
-    }
 
     if (!verticies.length) return { center: new Vector3(0, 0, 0), radius };
 
