@@ -148,6 +148,10 @@ export class Render {
 
       if (clipped.length < 3) continue;
 
+      if (this.isTriangleBackFace(clipped[0], clipped[1], clipped[2])) {
+        continue;
+      }
+
       for (let i = 1; i < clipped.length - 1; i++) {
         this.renderTriangel({
           p0: clipped[0],
@@ -296,6 +300,33 @@ export class Render {
       (polygon, plane) => this.clipPolygonAgainstPlane(polygon, plane),
       vertices,
     );
+  }
+
+  getTriangleNormal(p0, p1, p2) {
+    const ax = p1.x - p0.x;
+    const ay = p1.y - p0.y;
+    const az = p1.z - p0.z;
+
+    const bx = p2.x - p0.x;
+    const by = p2.y - p0.y;
+    const bz = p2.z - p0.z;
+
+    return new Vector3(ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx);
+  }
+
+  isTriangleBackFace(p0, p1, p2) {
+    const normal = this.getTriangleNormal(p0, p1, p2);
+
+    const centroid = new Vector3(
+      (p0.x + p1.x + p2.x) / 3,
+      (p0.y + p1.y + p2.y) / 3,
+      (p0.z + p1.z + p2.z) / 3,
+    );
+
+    const dot =
+      normal.x * centroid.x + normal.y * centroid.y + normal.z * centroid.z;
+
+    return dot > 0;
   }
 
   renderTriangel(triangle) {
