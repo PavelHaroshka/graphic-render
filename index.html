@@ -12,7 +12,6 @@
   <div class="container">
     <h1>Renderer Demo</h1>
 
-    <!-- Tabs -->
     <input type="radio" name="tab" id="rasterizer" checked />
     <input type="radio" name="tab" id="raytracer" />
 
@@ -22,35 +21,36 @@
     </div>
 
     <div class="content">
-      <div class="panel rasterizer">
-        <div class="title">Rasterizer Demo</div>
+      <div class="content">
+        <div class="panel rasterizer">
+          <div class="title">Rasterizer Demo</div>
 
-        <div class="controls">
-          <div class="control-group">
-            <label for="shadow-mode">Shadow Mode</label>
-            <select id="shadow-mode">
-              <option value="falt">Flat</option>
-            </select>
+          <div class="controls">
+            <div class="control-group">
+              <label for="shadow-mode">Shadowing Mode</label>
+              <select id="shadow-mode">
+                <option value="flat">Flat</option>
+              </select>
+            </div>
+
+            <div class="control-group">
+              <label for="render-mode">Render Mode</label>
+              <select id="render-mode">
+                <option value="filled">Filled</option>
+                <option value="wireframe">Wireframe</option>
+              </select>
+            </div>
           </div>
 
-          <div class="control-group">
-            <label for="render-mode">Render Mode</label>
-            <select id="render-mode">
-              <option value="filled">Filled</option>
-              <option value="wireframe">Wireframe</option>
-            </select>
-          </div>
+          <canvas id="rasterizer-demo" width="640" height="640"></canvas>
         </div>
 
-        <canvas id="rasterizer-demo" width="640" height="640"></canvas>
+        <div class="panel raytracer">
+          <div class="title">Raytracer Demo</div>
+          <canvas id="ray-tracer-demo" width="640" height="640"></canvas>
+        </div>
       </div>
     </div>
-
-    <div class="panel raytracer">
-      <div class="title">Raytracer Demo</div>
-      <canvas id="ray-tracer-demo"></canvas>
-    </div>
-  </div>
   </div>
   <script type="module" src="/src/main.js"></script>
 </body>

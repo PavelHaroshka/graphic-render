@@ -83,8 +83,6 @@ input[type="radio"] {
   opacity: 0.7;
 }
 
-/* Rasterizer controls */
-
 .controls {
   display: flex;
   justify-content: center;
@@ -96,7 +94,8 @@ input[type="radio"] {
 
 .control-group {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 8px;
 }
 
@@ -104,7 +103,6 @@ input[type="radio"] {
   font-size: 14px;
   color: #ccc;
 }
-
 .control-group select {
   background: #292929;
   color: #eee;
