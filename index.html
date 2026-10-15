@@ -1,36 +1,40 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Renderer Demo</title>
-    <script type="module" crossorigin src="/graphic-render/assets/index-3RIlRHrV.js"></script>
-    <link rel="stylesheet" crossorigin href="/graphic-render/assets/index-BUrKzRRA.css">
-  </head>
-  <body>
-    <div class="container">
-      <h1>Renderer Demo</h1>
 
-      <!-- Tabs -->
-      <input type="radio" name="tab" id="raytracer" checked />
-      <input type="radio" name="tab" id="rasterizer" />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Renderer Demo</title>
+  <script type="module" crossorigin src="/graphic-render/assets/index-M_4WLc3j.js"></script>
+  <link rel="stylesheet" crossorigin href="/graphic-render/assets/index-DsjEt_Ny.css">
+</head>
 
-      <div class="tabs">
-        <label for="raytracer">Raytracer</label>
-        <label for="rasterizer">Rasterizer</label>
-      </div>
+<body>
+  <div class="container">
+    <h1>Renderer Demo</h1>
 
+    <input type="radio" name="tab" id="rasterizer" checked />
+    <input type="radio" name="tab" id="raytracer" />
+
+    <div class="tabs">
+      <label for="rasterizer">Rasterizer</label>
+      <label for="raytracer">Raytracer</label>
+    </div>
+
+    <div class="content">
       <div class="content">
-        <div class="panel raytracer">
-          <div class="title">Raytracer Demo</div>
-          <canvas id="ray-tracer-demo"></canvas>
-        </div>
-
         <div class="panel rasterizer">
           <div class="title">Rasterizer Demo</div>
-          <canvas id="rasterizer-demo"></canvas>
+          <canvas id="rasterizer-demo" width="640" height="640"></canvas>
+        </div>
+
+        <div class="panel raytracer">
+          <div class="title">Raytracer Demo</div>
+          <canvas id="ray-tracer-demo" width="640" height="640"></canvas>
         </div>
       </div>
     </div>
-  </body>
+  </div>
+</body>
+
 </html>
