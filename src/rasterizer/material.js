@@ -3,6 +3,7 @@ import { SHADING_MODE } from "./render";
 import { loadTexture } from "./texture";
 
 import crateTexture from "../assets/crate-texture.jpg";
+import metalTexture from "../assets/metal-texture.jpg";
 
 export class Material {
   shading = SHADING_MODE.flat;
@@ -28,7 +29,22 @@ export const redFlatMaterial = await createMaterial({
   shading: SHADING_MODE.flat,
 });
 
-export const texturedMaterial = await createMaterial({
+export const blueFlatMaterial = await createMaterial({
+  color: new Vector3(70, 140, 240),
+  shading: SHADING_MODE.flat,
+});
+
+export const orangeFlatMaterial = await createMaterial({
+  color: new Vector3(240, 150, 60),
+  shading: SHADING_MODE.flat,
+});
+
+export const crateMaterial = await createMaterial({
   textureSrc: crateTexture,
+  shading: SHADING_MODE.flat,
+});
+
+export const metalMaterial = await createMaterial({
+  textureSrc: metalTexture,
   shading: SHADING_MODE.flat,
 });

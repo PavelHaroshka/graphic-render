@@ -498,14 +498,13 @@ export class Render {
   isTriangleBackFace(p0, p1, p2) {
     const normal = this.getTriangleNormal(p0, p1, p2);
 
-    const centroid = new Vector3(
+    const center = new Vector3(
       (p0.x + p1.x + p2.x) / 3,
       (p0.y + p1.y + p2.y) / 3,
       (p0.z + p1.z + p2.z) / 3,
     );
 
-    const dot =
-      normal.x * centroid.x + normal.y * centroid.y + normal.z * centroid.z;
+    const dot = normal.x * center.x + normal.y * center.y + normal.z * center.z;
 
     return dot > 0;
   }

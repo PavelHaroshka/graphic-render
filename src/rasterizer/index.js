@@ -2,9 +2,15 @@ import { Vector3 } from "threejs-math";
 
 import { Render, RENDER_MODE, SHADING_MODE } from "./render";
 import { ShapeInstance, shapes } from "./shapes";
-import { createCube } from "./meshes";
+import { createCube, createCylinder, createSphere } from "./meshes";
 
-import { redFlatMaterial, texturedMaterial } from "./material";
+import {
+  blueFlatMaterial,
+  crateMaterial,
+  metalMaterial,
+  orangeFlatMaterial,
+  redFlatMaterial,
+} from "./material";
 
 const shadowMode = document.getElementById("shadow-mode");
 const renderMode = document.getElementById("render-mode");
@@ -39,7 +45,11 @@ const getSelectedMode = (select, modes, fallback) => {
 };
 
 export const initRasterizer = async () => {
-  const meshShapes = [await createCube(texturedMaterial)];
+  const meshShapes = [
+    await createCube(crateMaterial),
+    await createSphere(blueFlatMaterial),
+    await createCylinder(metalMaterial),
+  ];
 
   const instances = [
     {
@@ -60,21 +70,7 @@ export const initRasterizer = async () => {
       label: "cylinder",
       identifier: shapes.cylinder,
       translation: new Vector3(3, 0, 8),
-      rotation: new Vector3(0.2, 0.4, 0),
-      scale: 1,
-    },
-    {
-      label: "outside-frustum",
-      identifier: shapes.sphere,
-      translation: new Vector3(20, 0, 8),
-      rotation: new Vector3(0, 0, 0),
-      scale: 1,
-    },
-    {
-      label: "behind-camera",
-      identifier: shapes.cylinder,
-      translation: new Vector3(0, 0, -5),
-      rotation: new Vector3(0, 0, 0),
+      rotation: new Vector3(0.3, 0.4, 0),
       scale: 1,
     },
   ];
