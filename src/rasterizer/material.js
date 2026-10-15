@@ -46,5 +46,5 @@ export const crateMaterial = await createMaterial({
 
 export const metalMaterial = await createMaterial({
   textureSrc: metalTexture,
-  shading: SHADING_MODE.flat,
+  shading: SHADING_MODE.phong,
 });

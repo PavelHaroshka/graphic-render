@@ -114,11 +114,14 @@ export class Render {
     this.drawLine(p2, p0, color);
   }
 
-  drawShadedTri({ p0, p1, p2 }, material, color) {
+  drawShadedTri({ p0, p1, p2 }, material, color, flatIntensity = null) {
+    const { texture } = material;
     const vertices = [p0, p1, p2].sort((a, b) => a.y - b.y);
 
     const [v0, v1, v2] = vertices;
     if (v0.y === v2.y) return;
+
+    const uvGradients = texture ? this.calculateUVGradients(v0, v1, v2) : null;
 
     const minY = Math.ceil(v0.y);
     const maxY = Math.ceil(v2.y);
@@ -164,27 +167,35 @@ export class Render {
       for (let x = startX; x <= endX; x++) {
         const t = right.x === left.x ? 0 : (x - left.x) / (right.x - left.x);
 
-        const intensity = left.h + t * (right.h - left.h);
+        const intensity = flatIntensity ?? left.h + t * (right.h - left.h);
 
         const invZ = left.invZ + t * (right.invZ - left.invZ);
-
         if (invZ <= 0) continue;
 
         const uOverZ = left.uOverZ + t * (right.uOverZ - left.uOverZ);
-
         const vOverZ = left.vOverZ + t * (right.vOverZ - left.vOverZ);
 
         const u = uOverZ / invZ;
         const v = vOverZ / invZ;
 
-        const texel = material.texture ? material.texture.sample(u, v) : color;
-        const shadedColor = material.texture
-          ? new Vector3(texel.x, texel.y, texel.z)
-          : new Vector3(
-              color.x * intensity,
-              color.y * intensity,
-              color.z * intensity,
-            );
+        let texel = color;
+
+        if (texture) {
+          const mipLevel = this.calculateMipLevel(texture, {
+            uOverZ,
+            vOverZ,
+            invZ,
+            uvGradients,
+          });
+
+          texel = texture.sampleTrilinear(u, v, mipLevel);
+        }
+
+        const shadedColor = new Vector3(
+          texel.x * intensity,
+          texel.y * intensity,
+          texel.z * intensity,
+        );
 
         this.putPixel(x, y, shadedColor, invZ);
       }
@@ -192,7 +203,11 @@ export class Render {
   }
 
   drawPhongTri(triangle, material, color) {
+    const { texture } = material;
     const { p0, p1, p2 } = triangle;
+
+    const vertices = [p0, p1, p2].sort((a, b) => a.y - b.y);
+    const [v0, v1, v2] = vertices;
 
     const edge1x = p1.x - p0.x;
     const edge1y = p1.y - p0.y;
@@ -202,6 +217,9 @@ export class Render {
     const area = edge1x * edge2y - edge1y * edge2x;
 
     if (Math.abs(area) < 1e-8) return;
+
+    // Calculate texture gradients once per triangle.
+    const uvGradients = texture ? this.calculateUVGradients(v0, v1, v2) : null;
 
     const minX = Math.floor(Math.min(p0.x, p1.x, p2.x));
     const maxX = Math.ceil(Math.max(p0.x, p1.x, p2.x));
@@ -226,10 +244,11 @@ export class Render {
         if (w0 < 0 || w1 < 0 || w2 < 0) continue;
 
         const uv = this.interpolateUV(p0, p1, p2, w0, w1, w2);
-
         if (!uv) continue;
 
         const { u, v, invZ } = uv;
+
+        if (invZ <= 0) continue;
 
         const nx =
           (w0 * p0.nx * p0.invZ + w1 * p1.nx * p1.invZ + w2 * p2.nx * p2.invZ) /
@@ -246,17 +265,29 @@ export class Render {
         const normal = this.normalize(new Vector3(nx, ny, nz));
 
         const diffuse = Math.max(0, normal.dot(light));
-
         const intensity = this.ambientLight + (1 - this.ambientLight) * diffuse;
 
-        const texel = material.texture ? material.texture.sample(u, v) : color;
-        const shadedColor = material.texture
-          ? new Vector3(texel.x, texel.y, texel.z)
-          : new Vector3(
-              color.x * intensity,
-              color.y * intensity,
-              color.z * intensity,
-            );
+        let baseColor = color;
+
+        if (texture) {
+          const uOverZ = u * invZ;
+          const vOverZ = v * invZ;
+
+          const mipLevel = this.calculateMipLevel(texture, {
+            uOverZ,
+            vOverZ,
+            invZ,
+            uvGradients,
+          });
+
+          baseColor = texture.sampleTrilinear(u, v, mipLevel);
+        }
+
+        const shadedColor = new Vector3(
+          baseColor.x * intensity,
+          baseColor.y * intensity,
+          baseColor.z * intensity,
+        );
 
         this.putPixel(x, y, shadedColor, invZ);
       }
@@ -283,22 +314,23 @@ export class Render {
       shadedVertices = transformed.map((vertex, index) => {
         const normal = vertexNormals[index];
 
-        return {
+        const vertexData = {
           ...vertex,
-          h:
-            shadingMode === SHADING_MODE.gouraud
-              ? this.calculateVertexIntensity(normal)
-              : 1,
           nx: normal.x,
           ny: normal.y,
           nz: normal.z,
         };
+
+        if (shadingMode === SHADING_MODE.gouraud) {
+          vertexData.h = this.calculateVertexIntensity(normal);
+        }
+
+        return vertexData;
       });
     }
 
     for (const triangle of shape.triangles) {
       const [i0, i1, i2] = triangle.vertexIndices;
-
       const indices = [i0, i1, i2];
       const uvs = [triangle.uv0, triangle.uv1, triangle.uv2];
 
@@ -510,8 +542,7 @@ export class Render {
   }
 
   renderTriangel(triangle) {
-    const { p0, p1, p2 } = triangle;
-    const material = triangle.material;
+    const { p0, p1, p2, material } = triangle;
     const shadingMode = material.shading;
 
     const color =
@@ -523,13 +554,13 @@ export class Render {
       return {
         x: projected.x,
         y: projected.y,
-        h: shadingMode === SHADING_MODE.gouraud ? (point.h ?? 1) : 1,
+        h: point.h ?? 1,
         nx: point.nx ?? 0,
         ny: point.ny ?? 0,
         nz: point.nz ?? 0,
         invZ: 1 / point.z,
-        u: point.u,
-        v: point.v,
+        u: point.u ?? 0,
+        v: point.v ?? 0,
       };
     };
 
@@ -537,7 +568,6 @@ export class Render {
       p0: project(p0),
       p1: project(p1),
       p2: project(p2),
-      color,
     };
 
     if (this.renderMode === RENDER_MODE.wireframe) {
@@ -545,30 +575,37 @@ export class Render {
       return;
     }
 
-    if (shadingMode === SHADING_MODE.flat) {
-      const intensity = triangle.flatIntensity ?? 1;
+    switch (shadingMode) {
+      case SHADING_MODE.flat: {
+        const flatIntensity = triangle.flatIntensity ?? 1;
 
-      const flatColor = new Vector3(
-        color.x * intensity,
-        color.y * intensity,
-        color.z * intensity,
-      );
+        const flatColor = new Vector3(
+          color.x * flatIntensity,
+          color.y * flatIntensity,
+          color.z * flatIntensity,
+        );
 
-      this.drawShadedTri(projectedTriangle, material, flatColor);
-      return;
+        this.drawShadedTri(
+          projectedTriangle,
+          material,
+          flatColor,
+          flatIntensity,
+        );
+        break;
+      }
+
+      case SHADING_MODE.gouraud:
+        this.drawShadedTri(projectedTriangle, material, color);
+        break;
+
+      case SHADING_MODE.phong:
+        this.drawPhongTri(projectedTriangle, material, color);
+        break;
+
+      default:
+        this.drawShadedTri(projectedTriangle, material, color);
+        break;
     }
-
-    if (shadingMode === SHADING_MODE.gouraud) {
-      this.drawShadedTri(projectedTriangle, material, color);
-      return;
-    }
-
-    if (shadingMode === SHADING_MODE.phong) {
-      this.drawPhongTri(projectedTriangle, material, color);
-      return;
-    }
-
-    this.drawShadedTri(projectedTriangle, material, color);
   }
 
   renderScene() {
@@ -683,6 +720,62 @@ export class Render {
     }
 
     return values;
+  }
+
+  // Materials
+
+  calculateMipLevel(texture, { uOverZ, vOverZ, invZ, uvGradients }) {
+    const qSquared = invZ * invZ;
+
+    const dudx =
+      (uvGradients.u.dx * invZ - uOverZ * uvGradients.q.dx) / qSquared;
+
+    const dudy =
+      (uvGradients.u.dy * invZ - uOverZ * uvGradients.q.dy) / qSquared;
+
+    const dvdx =
+      (uvGradients.v.dx * invZ - vOverZ * uvGradients.q.dx) / qSquared;
+
+    const dvdy =
+      (uvGradients.v.dy * invZ - vOverZ * uvGradients.q.dy) / qSquared;
+
+    const texWidth = texture.width - 1;
+    const texHeight = texture.height - 1;
+
+    const footprintX = Math.hypot(dudx * texWidth, dvdx * texHeight);
+
+    const footprintY = Math.hypot(dudy * texWidth, dvdy * texHeight);
+
+    const rho = Math.max(footprintX, footprintY, 1);
+
+    const maxLevel = texture.mipLevels.length - 1;
+
+    return Math.max(0, Math.min(maxLevel, Math.log2(rho)));
+  }
+
+  calculateUVGradients(v0, v1, v2) {
+    let uvGradients;
+
+    const area = (v1.x - v0.x) * (v2.y - v0.y) - (v2.x - v0.x) * (v1.y - v0.y);
+
+    if (Math.abs(area) < 1e-8) return;
+
+    const gradient = (f0, f1, f2) => ({
+      dx: ((f1 - f0) * (v2.y - v0.y) - (f2 - f0) * (v1.y - v0.y)) / area,
+      dy: ((v1.x - v0.x) * (f2 - f0) - (v2.x - v0.x) * (f1 - f0)) / area,
+    });
+
+    const uOverZ = [v0, v1, v2].map((p) => p.u * p.invZ);
+    const vOverZ = [v0, v1, v2].map((p) => p.v * p.invZ);
+    const invZ = [v0.invZ, v1.invZ, v2.invZ];
+
+    uvGradients = {
+      u: gradient(...uOverZ),
+      v: gradient(...vOverZ),
+      q: gradient(...invZ),
+    };
+
+    return uvGradients;
   }
 
   interpolateUV(p0, p1, p2, w0, w1, w2) {
